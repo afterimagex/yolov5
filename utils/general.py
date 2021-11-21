@@ -31,6 +31,8 @@ import yaml
 from utils.downloads import gsutil_getsize
 from utils.metrics import box_iou, fitness
 
+from clearml import Task
+
 # Settings
 torch.set_printoptions(linewidth=320, precision=5, profile='long')
 np.set_printoptions(linewidth=320, formatter={'float_kind': '{:11.5g}'.format})  # format short g, %precision=5

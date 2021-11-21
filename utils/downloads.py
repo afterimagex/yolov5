@@ -14,6 +14,8 @@ from zipfile import ZipFile
 import requests
 import torch
 
+from clearml import Task
+
 
 def gsutil_getsize(url=''):
     # gs://bucket/file size https://cloud.google.com/storage/docs/gsutil/commands/du
@@ -73,6 +75,9 @@ def attempt_download(file, repo='ultralytics/yolov5'):  # from utils.downloads i
                           # url2=f'https://storage.googleapis.com/{repo}/ckpt/{name}',  # backup url (optional)
                           min_bytes=1E5,
                           error_msg=f'{file} missing, try downloading from https://github.com/{repo}/releases/')
+
+        task = Task.current_task()
+        task.upload_artifact(name, file)
 
     return str(file)
 
