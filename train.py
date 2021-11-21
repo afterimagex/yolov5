@@ -16,6 +16,8 @@ from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 
+from clearml import Task, Dataset
+
 import numpy as np
 import torch
 import torch.distributed as dist
@@ -31,8 +33,6 @@ ROOT = FILE.parents[0]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))  # add ROOT to PATH
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
-
-from clearml import Dataset, Task
 
 import val  # for end-of-epoch mAP
 from models.experimental import attempt_load
@@ -56,13 +56,6 @@ from utils.torch_utils import EarlyStopping, ModelEMA, de_parallel, select_devic
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))  # https://pytorch.org/docs/stable/elastic/run.html
 RANK = int(os.getenv('RANK', -1))
 WORLD_SIZE = int(os.getenv('WORLD_SIZE', 1))
-
-
-def parse_known_args_only(self, args=None, namespace=None):
-    return self.parse_known_args(args=None, namespace=None)[0]
-
-
-argparse.ArgumentParser.parse_args = parse_known_args_only
 
 
 def train(hyp,  # path/to/hyp.yaml or hyp dictionary
@@ -459,23 +452,17 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
     return results
 
 
-def parse_opt():
-    Task.ignore_requirements('torch')
-    Task.ignore_requirements('torchvision')
-    Task.ignore_requirements('numpy')
-    Task.ignore_requirements('pyyaml')
-
-    task = Task.init(project_name="Yolov5", task_name="yolov5 train",
-                     reuse_last_task_id=False)
+def parse_opt(known=False):
+    task = Task.init(project_name="Detection", task_name="yolov5-train", reuse_last_task_id=False)
     task.set_base_docker("pytorch/pytorch:1.10.0-cuda11.3-cudnn8-runtime")
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', type=str, default=ROOT / 'yolov5s.pt', help='initial weights path')
-    parser.add_argument('--cfg', type=str, default='', help='model.yaml path')
+    parser.add_argument('--cfg', type=str, default=ROOT / 'models/yolov5s.yaml', help='model.yaml path')
     parser.add_argument('--data', type=str, default=ROOT / 'data/coco128.yaml', help='dataset.yaml path')
     parser.add_argument('--hyp', type=str, default=ROOT / 'data/hyps/hyp.scratch.yaml', help='hyperparameters path')
     parser.add_argument('--epochs', type=int, default=300)
-    parser.add_argument('--batch-size', type=int, default=1, help='total batch size for all GPUs, -1 for autobatch')
+    parser.add_argument('--batch-size', type=int, default=-1, help='total batch size for all GPUs, -1 for autobatch')
     parser.add_argument('--imgsz', '--img', '--img-size', type=int, default=640, help='train, val image size (pixels)')
     parser.add_argument('--rect', action='store_true', help='rectangular training')
     parser.add_argument('--resume', nargs='?', const=True, default=False, help='resume most recent training')
@@ -484,7 +471,7 @@ def parse_opt():
     parser.add_argument('--noautoanchor', action='store_true', help='disable autoanchor check')
     parser.add_argument('--evolve', type=int, nargs='?', const=300, help='evolve hyperparameters for x generations')
     parser.add_argument('--bucket', type=str, default='', help='gsutil bucket')
-    parser.add_argument('--cache', type=str, nargs='?', const='disk',
+    parser.add_argument('--cache', type=str, nargs='?', const='ram',
                         help='--cache images in "ram" (default) or "disk"')
     parser.add_argument('--image-weights', action='store_true', help='use weighted image selection for training')
     parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
@@ -510,7 +497,9 @@ def parse_opt():
     parser.add_argument('--bbox_interval', type=int, default=-1, help='W&B: Set bounding-box image logging interval')
     parser.add_argument('--artifact_alias', type=str, default='latest', help='W&B: Version of dataset artifact to use')
 
-    opt = parser.parse_args()
+    opt = parser.parse_known_args()[0] if known else parser.parse_args()
+
+    task.execute_remotely(queue_name="yolov5")
     return opt
 
 
@@ -655,5 +644,5 @@ def run(**kwargs):
 
 
 if __name__ == "__main__":
-    opt = parse_opt()
+    opt = parse_opt(True)
     main(opt)
